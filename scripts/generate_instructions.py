@@ -16,11 +16,11 @@ def build_items() -> list[dict]:
         specs = [
             ("word_count",
              f"Describe {topic} in exactly {n_words} words. Respond with only those words.",
-             {"n": n_words}, ["exactly", "words"]),
+             {"n": n_words}, ["exactly", "only", "words"]),
             ("json_keys",
              f"Respond with only a valid JSON object with keys \"name\" and \"year\", "
              f"describing a famous person related to {topic}.",
-             {"keys": ["name", "year"]}, ["JSON", "keys", "name", "year", "valid", "object"]),
+             {"keys": ["name", "year"]}, ["JSON", "only", "keys", "name", "year", "valid", "object"]),
             ("lowercase",
              f"Write one sentence about {topic} using only lowercase letters.",
              {}, ["lowercase", "letters", "only"]),

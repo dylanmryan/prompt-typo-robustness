@@ -1,0 +1,23 @@
+seed: 42
+results_path: results/trials.jsonl
+severities: [0.0, 0.05, 0.10, 0.20]
+models:
+  - llama3.2:1b
+  - llama3.2:3b
+  - llama3.1:8b
+  - qwen2.5:14b
+item_counts:
+  math: 75
+  sentiment: 100
+  instructions: 50
+# Fraction of items to run per model (wall-clock control for big models).
+# Any value < 1.0 must be reported in the README.
+model_item_fraction:
+  qwen2.5:14b: 0.5
+typo_breakdown:
+  severity: 0.10
+  item_fraction: 0.5
+generation:
+  temperature: 0.0
+  num_predict: 512
+  timeout_s: 180

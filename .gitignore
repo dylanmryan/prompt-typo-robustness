@@ -1,0 +1,8 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+docs/superpowers/
+*.egg-info/
+.pytest_cache/

@@ -15,7 +15,7 @@ def _load_jsonl(path: Path) -> list[dict]:
 
 
 def _to_number(s: str) -> float:
-    return float(s.replace(",", "").replace("$", "").strip().rstrip("."))
+    return float(s.replace(",", "").strip().rstrip("."))
 
 
 class _BaseTask:
@@ -25,6 +25,28 @@ class _BaseTask:
         data_dir = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
         self.items: list[dict] = _load_jsonl(data_dir / self.filename)
         self.items_by_id: dict[str, dict] = {it["id"]: it for it in self.items}
+
+
+_MARKER_ANSWER_RE = re.compile(r"####\s*(" + _NUM_RE.pattern + ")")
+_PHRASE_ANSWER_RE = re.compile(
+    r"answer(?:\s+is)?\s*:?\s*(" + _NUM_RE.pattern + ")", re.IGNORECASE)
+
+
+def _extract_math_answer(response: str) -> str | None:
+    """Extract the candidate final answer from a model response.
+
+    Cascade: the explicit '#### <number>' marker wins; else the last
+    'answer is <number>' phrase; else the last number anywhere (so stray
+    numbers after the stated answer cannot override it).
+    """
+    m = _MARKER_ANSWER_RE.search(response)
+    if m:
+        return m.group(1)
+    phrase_matches = _PHRASE_ANSWER_RE.findall(response)
+    if phrase_matches:
+        return phrase_matches[-1]
+    numbers = _NUM_RE.findall(response)
+    return numbers[-1] if numbers else None
 
 
 class MathTask(_BaseTask):
@@ -37,8 +59,7 @@ class MathTask(_BaseTask):
                 "form '#### <number>'.\n\n" + item["question"])
 
     def grade(self, item: dict, response: str) -> bool:
-        m = re.search(r"####\s*(" + _NUM_RE.pattern + ")", response)
-        cand = m.group(1) if m else (_NUM_RE.findall(response) or [None])[-1]
+        cand = _extract_math_answer(response)
         if cand is None:
             return False
         try:
@@ -60,6 +81,8 @@ class SentimentTask(_BaseTask):
                 "Review: " + item["sentence"])
 
     def grade(self, item: dict, response: str) -> bool:
+        # Intentionally strict: the prompt demands exactly one label word, so a
+        # response mentioning both labels is graded as an instruction failure.
         found = set(re.findall(r"\b(positive|negative)\b", response.lower()))
         return found == {item["label"]}
 
@@ -84,21 +107,22 @@ class InstructionTask(_BaseTask):
 
 
 def _check_json_keys(response: str, check: dict) -> bool:
-    m = re.search(r"\{.*\}", response, re.DOTALL)
-    if not m:
-        return False
-    try:
-        obj = json.loads(m.group(0))
-    except json.JSONDecodeError:
-        return False
-    return isinstance(obj, dict) and set(obj.keys()) == set(check["keys"])
+    decoder = json.JSONDecoder()
+    for start in (m.start() for m in re.finditer(r"\{", response)):
+        try:
+            obj, _ = decoder.raw_decode(response[start:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            return set(obj.keys()) == set(check["keys"])
+    return False
 
 
 _CHECKERS = {
     "word_count": lambda r, c: len(r.split()) == c["n"],
     "json_keys": _check_json_keys,
     "lowercase": lambda r, c: r == r.lower() and any(ch.isalpha() for ch in r),
-    "starts_with": lambda r, c: r.strip().lower().startswith(c["word"].lower()),
+    "starts_with": lambda r, c: r.strip().lstrip("\"'“‘").lower().startswith(c["word"].lower()),
     "bullet_count": lambda r, c: sum(
         1 for ln in r.splitlines() if ln.strip().startswith("- ")) == c["n"],
 }

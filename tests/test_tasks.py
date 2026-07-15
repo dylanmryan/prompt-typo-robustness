@@ -9,9 +9,12 @@ from typo_study.tasks import InstructionTask, MathTask, SentimentTask, get_task
 
 @pytest.fixture()
 def data_dir(tmp_path: Path) -> Path:
-    (tmp_path / "gsm8k.jsonl").write_text(json.dumps(
+    (tmp_path / "gsm8k.jsonl").write_text("".join(json.dumps(it) + "\n" for it in [
         {"id": "gsm8k-000", "question": "Tom has 3 boxes of 4 pens. How many pens?",
-         "answer": "12"}) + "\n")
+         "answer": "12"},
+        {"id": "gsm8k-001", "question": "A widget costs 1200 dollars. Total?",
+         "answer": "1200"},
+    ]))
     (tmp_path / "sst2.jsonl").write_text(json.dumps(
         {"id": "sst2-000", "sentence": "a delightful and moving film", "label": "positive"}) + "\n")
     (tmp_path / "instructions.jsonl").write_text("".join(json.dumps(it) + "\n" for it in [
@@ -49,6 +52,24 @@ def test_math_grading(data_dir, response, expected):
     assert task.grade(task.items[0], response) is expected
 
 
+def test_math_answer_phrase_beats_trailing_number(data_dir):
+    task = MathTask(data_dir)
+    item = task.items_by_id["gsm8k-000"]
+    response = "The final answer is 12. Let me know if you have questions about problem 42."
+    assert task.grade(item, response) is True
+
+
+def test_math_comma_grouped_marker_answer(data_dir):
+    task = MathTask(data_dir)
+    item = task.items_by_id["gsm8k-001"]
+    assert task.grade(item, "#### 1,200") is True
+
+
+def test_math_protected_tokens_empty(data_dir):
+    task = MathTask(data_dir)
+    assert task.protected_tokens(task.items[0]) == set()
+
+
 @pytest.mark.parametrize("response,expected", [
     ("positive", True),
     ("Positive.", True),
@@ -74,10 +95,12 @@ def test_sentiment_protected_tokens(data_dir):
     ("instr-001", 'Sure! {"name": "Ada", "year": 1815}', True),
     ("instr-001", '{"name": "Ada"}', False),
     ("instr-001", "not json at all", False),
+    ("instr-001", '{"name": "Ada", "year": 1815} Note: format is like {this}.', True),
     ("instr-002", "coffee is nice.", True),
     ("instr-002", "Coffee is nice.", False),
     ("instr-003", "Surprisingly, chess is old.", True),
     ("instr-003", "Chess is surprisingly old.", False),
+    ("instr-003", '"Surprisingly, chess is old."', True),
     ("instr-004", "- fact one\n- fact two", True),
     ("instr-004", "- only one fact", False),
 ])
@@ -85,6 +108,12 @@ def test_instruction_grading(data_dir, item_id, response, expected):
     task = InstructionTask(data_dir)
     item = task.items_by_id[item_id]
     assert task.grade(item, response) is expected
+
+
+def test_instruction_protected_tokens(data_dir):
+    task = InstructionTask(data_dir)
+    item = task.items_by_id["instr-001"]
+    assert task.protected_tokens(item) == set(item["protected"])
 
 
 def test_get_task_registry(data_dir):

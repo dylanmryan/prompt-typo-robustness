@@ -83,7 +83,7 @@ def test_run_trials_writes_records_and_grades(tmp_path):
     results = tmp_path / "trials.jsonl"
     client = StubClient()
     run_trials(CONFIG, {"fake": FakeTask()}, client, results)
-    records = [json.loads(l) for l in results.read_text().splitlines()]
+    records = [json.loads(line) for line in results.read_text().splitlines()]
     assert len(records) == 16 and all(r["correct"] for r in records)
     zero = [r for r in records if r["severity"] == 0.0]
     assert all(r["n_edits"] == 0 for r in zero)
@@ -104,7 +104,7 @@ def test_run_trials_resumes_without_repeating(tmp_path):
 def test_incorrect_and_empty_responses_flagged(tmp_path):
     results = tmp_path / "trials.jsonl"
     run_trials(CONFIG, {"fake": FakeTask()}, StubClient(reply="  "), results)
-    records = [json.loads(l) for l in results.read_text().splitlines()]
+    records = [json.loads(line) for line in results.read_text().splitlines()]
     assert all(not r["correct"] for r in records)
     assert all(r["empty"] for r in records)
 
@@ -115,8 +115,8 @@ def test_resume_tolerates_truncated_last_line(tmp_path):
     text = results.read_text()
     results.write_text(text[: len(text) - 20])          # torn final line
     run_trials(CONFIG, {"fake": FakeTask()}, StubClient(), results)
-    keys = [json.loads(l)["key"] for l in results.read_text().splitlines()
-            if l.strip() and l.endswith("}")]
+    keys = [json.loads(line)["key"] for line in results.read_text().splitlines()
+            if line.strip() and line.endswith("}")]
     assert len(keys) == len(set(keys)) == 16
 
 

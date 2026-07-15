@@ -1,6 +1,7 @@
 """Build the analysis notebook programmatically so it stays in sync with the package."""
-import nbformat as nbf
 from pathlib import Path
+
+import nbformat as nbf
 
 nb = nbf.v4.new_notebook()
 nb.cells = [

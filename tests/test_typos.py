@@ -2,7 +2,8 @@
 from typo_study.typos import TYPO_TYPES, corrupt
 
 TEXT = ("Sally bought seventeen apples from the market and gave four "
-        "apples to her brother before walking home yesterday evening")  # 19 words, 18 eligible ("to" too short)
+        "apples to her brother before walking home yesterday evening")
+# 19 words, 18 eligible ("to" too short)
 
 
 def test_deterministic_given_same_seed():

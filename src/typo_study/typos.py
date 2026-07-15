@@ -112,5 +112,6 @@ def corrupt(
         typo_type = rng.choice(typo_types)
         corrupted = _apply_typo(core, typo_type, rng)
         tokens[idx] = prefix + corrupted + suffix
-        edits.append(Edit(token_index=idx // 2, original=core, corrupted=corrupted, typo_type=typo_type))
+        edits.append(Edit(token_index=idx // 2, original=core,
+                          corrupted=corrupted, typo_type=typo_type))
     return CorruptionResult(text="".join(tokens), edits=edits)

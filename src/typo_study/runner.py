@@ -116,7 +116,7 @@ def run_trials(config: dict, task_map: dict, client, results_path: Path) -> None
                 if n_failed >= MAX_CONSECUTIVE_FAILURES:
                     raise RuntimeError(
                         f"model {t['model']} failed {MAX_CONSECUTIVE_FAILURES} "
-                        "consecutive trials; aborting (is it pulled?)")
+                        "consecutive trials; aborting (is it pulled?)") from err
                 continue
             consecutive_failures[t["model"]] = 0
             try:

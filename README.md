@@ -15,7 +15,7 @@
 
    ![Accuracy by task and model](figures/task_model_heatmap.png)
 
-4. **Typos do not change response length.** Mean response length is flat across severity (56.7 words at 0% vs. 56.9 at 20%; the four-level range is only 56.5–57.6 words). Corruption degrades correctness without making models more verbose, more terse, or triggering visible "confusion" padding.
+4. **Typos do not change response length.** Mean response length is flat across severity (56.7 words at 0% vs. 56.8 at 20%; the four-level range is only 56.5–57.6 words). Corruption degrades correctness without making models more verbose, more terse, or triggering visible "confusion" padding.
 
 ## Method
 

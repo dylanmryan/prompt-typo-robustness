@@ -27,9 +27,9 @@ class _BaseTask:
         self.items_by_id: dict[str, dict] = {it["id"]: it for it in self.items}
 
 
-_MARKER_ANSWER_RE = re.compile(r"####\s*(" + _NUM_RE.pattern + ")")
+_MARKER_ANSWER_RE = re.compile(r"####\s*\**\s*(" + _NUM_RE.pattern + ")")
 _PHRASE_ANSWER_RE = re.compile(
-    r"answer(?:\s+is)?\s*:?\s*(" + _NUM_RE.pattern + ")", re.IGNORECASE)
+    r"answer(?:\s+is)?\s*:?\s*\**\s*(" + _NUM_RE.pattern + ")", re.IGNORECASE)
 
 
 def _extract_math_answer(response: str) -> str | None:
@@ -122,7 +122,7 @@ _CHECKERS = {
     "word_count": lambda r, c: len(r.split()) == c["n"],
     "json_keys": _check_json_keys,
     "lowercase": lambda r, c: r == r.lower() and any(ch.isalpha() for ch in r),
-    "starts_with": lambda r, c: r.strip().lstrip("\"'“‘").lower().startswith(c["word"].lower()),
+    "starts_with": lambda r, c: r.strip().lstrip("\"'“‘*").lower().startswith(c["word"].lower()),
     "bullet_count": lambda r, c: sum(
         1 for ln in r.splitlines() if ln.strip().startswith("- ")) == c["n"],
 }

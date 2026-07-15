@@ -46,6 +46,8 @@ def test_math_load_and_prompt(data_dir):
     ("I cannot solve this", False),
     ("", False),
     ("#### 1,200", False),
+    ("The answer is **12**. See step 2 above.", True),
+    ("#### **12** final", True),
 ])
 def test_math_grading(data_dir, response, expected):
     task = MathTask(data_dir)
@@ -101,6 +103,7 @@ def test_sentiment_protected_tokens(data_dir):
     ("instr-003", "Surprisingly, chess is old.", True),
     ("instr-003", "Chess is surprisingly old.", False),
     ("instr-003", '"Surprisingly, chess is old."', True),
+    ("instr-003", "**Surprisingly**, chess is old.", True),
     ("instr-004", "- fact one\n- fact two", True),
     ("instr-004", "- only one fact", False),
 ])

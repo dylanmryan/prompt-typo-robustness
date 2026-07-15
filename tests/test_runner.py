@@ -1,6 +1,9 @@
 """Grid construction and resume-logic tests (no real Ollama)."""
 import json
 
+import pytest
+
+from typo_study.ollama_client import OllamaError
 from typo_study.runner import build_trials, run_trials, trial_key
 from typo_study.typos import TYPO_TYPES
 
@@ -103,3 +106,46 @@ def test_incorrect_and_empty_responses_flagged(tmp_path):
     records = [json.loads(l) for l in results.read_text().splitlines()]
     assert all(not r["correct"] for r in records)
     assert all(r["empty"] for r in records)
+
+
+def test_resume_tolerates_truncated_last_line(tmp_path):
+    results = tmp_path / "trials.jsonl"
+    run_trials(CONFIG, {"fake": FakeTask()}, StubClient(), results)
+    text = results.read_text()
+    results.write_text(text[: len(text) - 20])          # torn final line
+    run_trials(CONFIG, {"fake": FakeTask()}, StubClient(), results)
+    keys = [json.loads(l)["key"] for l in results.read_text().splitlines()
+            if l.strip() and l.endswith("}")]
+    assert len(keys) == len(set(keys)) == 16
+
+
+def test_aborts_after_consecutive_model_failures(tmp_path):
+    class DeadClient:
+        def __init__(self):
+            self.calls = 0
+
+        def generate(self, model, prompt):
+            self.calls += 1
+            raise OllamaError("model not found")
+
+    client = DeadClient()
+    with pytest.raises(RuntimeError):
+        run_trials(CONFIG, {"fake": FakeTask()}, client, tmp_path / "t.jsonl")
+    assert client.calls == 5
+
+
+def test_ollama_error_skips_and_retries_on_resume(tmp_path):
+    class FlakyClient:
+        def generate(self, model, prompt):
+            if "f2" in prompt:
+                raise OllamaError("boom")
+            return "yes"
+
+    results = tmp_path / "trials.jsonl"
+    run_trials(CONFIG, {"fake": FakeTask()}, FlakyClient(), results)
+    # f2 has 2 main trials plus 4 breakdown trials (the seeded breakdown sample
+    # is {f2, f3}); its 4 consecutive breakdown failures stay below the abort
+    # threshold, so the run completes with the other 10 trials recorded.
+    assert len(results.read_text().splitlines()) == 10
+    run_trials(CONFIG, {"fake": FakeTask()}, StubClient(), results)
+    assert len(results.read_text().splitlines()) == 16

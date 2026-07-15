@@ -21,7 +21,7 @@ _TOKEN_RE = re.compile(r"^(\W*)(.*?)(\W*)$", re.DOTALL)
 
 @dataclass
 class Edit:
-    token_index: int
+    token_index: int  # word ordinal: index into text.split()
     original: str
     corrupted: str
     typo_type: str
@@ -40,8 +40,12 @@ def _eligible(core: str, protected: set[str]) -> bool:
 def _apply_typo(word: str, typo_type: str, rng: random.Random) -> str:
     if typo_type == "substitution":
         positions = [i for i, ch in enumerate(word) if ch.lower() in QWERTY_NEIGHBORS]
+        if not positions:  # no QWERTY-mapped letters (e.g. non-ASCII word)
+            return _apply_typo(word, "doubling", rng)
         i = rng.choice(positions)
         repl = rng.choice(QWERTY_NEIGHBORS[word[i].lower()])
+        if word[i].isupper():
+            repl = repl.upper()
         return word[:i] + repl + word[i + 1:]
     if typo_type == "transposition":
         positions = [i for i in range(len(word) - 1) if word[i] != word[i + 1]]
@@ -65,9 +69,31 @@ def corrupt(
     protected: frozenset[str] | set[str] = frozenset(),
     typo_types: tuple[str, ...] = TYPO_TYPES,
 ) -> CorruptionResult:
-    """Corrupt `severity` fraction of eligible words in `text`, deterministically."""
+    """Corrupt `severity` fraction of eligible words in `text`, deterministically.
+
+    Eligibility: only purely alphabetic words of length >= 3 are corrupted
+    (punctuation attached to a word is stripped before the check and preserved
+    in the output). Contractions ("don't") and hyphenated words ("well-known")
+    are intentionally left untouched, and digits are never corrupted, so
+    corruptions degrade surface form without changing ground-truth answers.
+
+    For any severity > 0 at least one eligible word is corrupted, so nominal
+    severity is inflated toward 1/len(eligible) for short texts (floor effect).
+
+    Args:
+        text: the prompt to corrupt.
+        severity: fraction of eligible words to corrupt, in [0, 1].
+        seed: RNG seed; identical inputs and seed give identical output.
+        protected: words (case-insensitive) that must never be corrupted.
+        typo_types: subset of TYPO_TYPES to draw from; must be non-empty.
+
+    Raises:
+        ValueError: if severity is outside [0, 1] or typo_types is empty.
+    """
     if not 0.0 <= severity <= 1.0:
         raise ValueError("severity must be in [0, 1]")
+    if not typo_types:
+        raise ValueError("typo_types must be non-empty")
     rng = random.Random(seed)
     tokens = re.split(r"(\s+)", text)
     protected_lower = {p.lower() for p in protected}
@@ -86,5 +112,5 @@ def corrupt(
         typo_type = rng.choice(typo_types)
         corrupted = _apply_typo(core, typo_type, rng)
         tokens[idx] = prefix + corrupted + suffix
-        edits.append(Edit(token_index=idx, original=core, corrupted=corrupted, typo_type=typo_type))
+        edits.append(Edit(token_index=idx // 2, original=core, corrupted=corrupted, typo_type=typo_type))
     return CorruptionResult(text="".join(tokens), edits=edits)

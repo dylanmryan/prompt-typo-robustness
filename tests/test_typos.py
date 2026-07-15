@@ -75,3 +75,34 @@ def test_invalid_severity_raises():
     import pytest
     with pytest.raises(ValueError):
         corrupt(TEXT, 1.5, seed=0)
+
+
+def test_substitution_preserves_case():
+    r = corrupt("Sally Thompson visited Paris", 1.0, seed=4, typo_types=("substitution",))
+    for e in r.edits:
+        j = next(k for k in range(len(e.original)) if e.original[k] != e.corrupted[k])
+        assert e.corrupted[j].isupper() == e.original[j].isupper()
+
+
+def test_non_ascii_word_does_not_crash():
+    r = corrupt("please translate the word αβγδε carefully today", 1.0, seed=1,
+                typo_types=("substitution",))
+    assert all(e.corrupted != e.original for e in r.edits)
+
+
+def test_contractions_and_hyphenated_words_untouched():
+    r = corrupt("don't stop the well-known process", 1.0, seed=9)
+    assert "don't" in r.text and "well-known" in r.text
+
+
+def test_token_index_is_word_ordinal():
+    r = corrupt("alpha beta gamma delta", 0.5, seed=2)
+    words = "alpha beta gamma delta".split()
+    for e in r.edits:
+        assert words[e.token_index] == e.original
+
+
+def test_empty_typo_types_raises():
+    import pytest
+    with pytest.raises(ValueError):
+        corrupt("hello world program", 0.5, seed=0, typo_types=())

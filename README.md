@@ -1,8 +1,25 @@
 # The Typo Tax: How Prompt Typos Degrade Small vs. Large LLMs
 
+[![CI](https://github.com/dylanmryan/prompt-typo-robustness/actions/workflows/ci.yml/badge.svg)](https://github.com/dylanmryan/prompt-typo-robustness/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](pyproject.toml)
+![Tests](https://img.shields.io/badge/tests-79%20passing-brightgreen.svg)
+
 **How much accuracy do local LLMs lose when the prompt is full of realistic typos, and does model size buy robustness?** I corrupt 0/5/10/20% of the eligible words in each prompt with a seeded, QWERTY-realistic typo engine and re-grade four Ollama models (temperature 0) on math, sentiment, and instruction-following. Across 4,960 graded trials with zero empty responses, the headline is a clear size-robustness gradient: the two small models pay a large typo tax (llama3.2:1b loses 6.7 accuracy points, llama3.2:3b loses 9.3 points from clean to 20% corruption), while the two larger models barely flinch (llama3.1:8b and qwen2.5:14b each lose 2.7 points). The honest caveat sits right next to the headline: the descriptive degradation is consistent and, for the 3B, its clean-vs-20% Wilson intervals barely overlap, but under errors clustered by prompt item the per-coefficient severity effects in a logistic model do **not** reach significance. This is a real but modestly-powered effect, and I report it as such.
 
 ![Accuracy vs. typo severity, by model](figures/degradation_curves.png)
+
+## Contents
+
+- [Headline findings](#headline-findings)
+- [Results at a glance](#results-at-a-glance)
+- [Method](#method)
+- [Statistical honesty](#statistical-honesty)
+- [Limitations](#limitations)
+- [Reproduce](#reproduce)
+- [Repository layout](#repository-layout)
+- [Data attribution](#data-attribution)
+- [Future work](#future-work)
 
 ## Headline findings
 
@@ -16,6 +33,17 @@
    ![Accuracy by task and model](figures/task_model_heatmap.png)
 
 4. **Typos do not change response length.** Mean response length is flat across severity (56.7 words at 0% vs. 56.8 at 20%; the four-level range is only 56.5–57.6 words). Corruption degrades correctness without making models more verbose, more terse, or triggering visible "confusion" padding.
+
+## Results at a glance
+
+Pooled accuracy (%) by model and typo severity, with the clean-to-worst change. Full per-cell Wilson 95% intervals are in [`results/summary.csv`](results/summary.csv).
+
+| Model | 0% | 5% | 10% | 20% | Δ (0→20%) | n / cell |
+|---|---:|---:|---:|---:|---:|---:|
+| llama3.2:1b | 64.0 | 59.1 | 57.3 | 57.3 | −6.7 | 225 |
+| llama3.2:3b | 84.4 | 81.3 | 78.7 | 75.1 | −9.3 | 225 |
+| llama3.1:8b | 91.1 | 91.1 | 92.0 | 88.4 | −2.7 | 225 |
+| qwen2.5:14b | 96.5 | 94.7 | 94.7 | 93.8 | −2.7 | 113 |
 
 ## Method
 
@@ -58,6 +86,24 @@ make analyze   # regenerate results/summary.csv, results/logit_summary.txt, and 
 ```
 
 Every raw per-trial record is committed at `results/trials.jsonl` (4,960 rows: prompt, corrupted prompt, response, grade, latency, and the exact edits applied), so **every number in this README is verifiable without rerunning the experiment**. The runner is resumable: it keys each trial deterministically, skips completed trials on restart, and repairs a torn JSONL tail, so an interrupted run can be resumed safely.
+
+## Repository layout
+
+```
+config/experiment.yaml     # single source of truth: models, tasks, severities, seed
+src/typo_study/
+  typos.py                 # seeded QWERTY typo engine (pure functions, no I/O)
+  tasks.py                 # dataset loaders, prompt templates, graders, protected tokens
+  ollama_client.py         # thin HTTP client: timeouts, bounded retries, fail-fast on 4xx
+  runner.py                # resumable, deterministic trial-grid runner
+  analysis.py              # Wilson intervals, item-clustered logistic regression, figures
+scripts/                   # data-freezing + notebook builder
+data/                      # frozen GSM8K / SST-2 subsets and synthetic instruction items
+results/                   # committed raw trials.jsonl + summary.csv + logit_summary.txt
+figures/                   # committed PNG charts
+notebooks/analysis.ipynb   # executed narrative companion to the analysis
+tests/                     # 79 tests (typo engine, graders, client, runner, statistics)
+```
 
 ## Data attribution
 

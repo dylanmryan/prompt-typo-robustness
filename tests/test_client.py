@@ -44,6 +44,58 @@ def test_generate_raises_after_max_retries(monkeypatch):
         client.generate("m", "p")
 
 
+def test_missing_response_key_raises_ollama_error(monkeypatch):
+    class _Bad:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"error": "boom"}
+
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _Bad())
+    client = OllamaClient(max_retries=2, backoff_s=0)
+    with pytest.raises(OllamaError):
+        client.generate("m", "p")
+
+
+def test_client_error_fails_fast_without_retries(monkeypatch):
+    calls = {"n": 0}
+
+    class _NotFound:
+        status_code = 404
+
+    def post_404(*a, **k):
+        calls["n"] += 1
+        err = requests.HTTPError("404")
+        err.response = _NotFound()
+        raise err
+
+    monkeypatch.setattr(requests, "post", post_404)
+    client = OllamaClient(max_retries=3, backoff_s=0)
+    with pytest.raises(OllamaError):
+        client.generate("m", "p")
+    assert calls["n"] == 1
+
+
+def test_server_error_is_retried(monkeypatch):
+    calls = {"n": 0}
+
+    class _ServerErr:
+        status_code = 503
+
+    def post_503(*a, **k):
+        calls["n"] += 1
+        err = requests.HTTPError("503")
+        err.response = _ServerErr()
+        raise err
+
+    monkeypatch.setattr(requests, "post", post_503)
+    client = OllamaClient(max_retries=2, backoff_s=0)
+    with pytest.raises(OllamaError):
+        client.generate("m", "p")
+    assert calls["n"] == 2
+
+
 def test_request_payload_shape(monkeypatch):
     captured = {}
 

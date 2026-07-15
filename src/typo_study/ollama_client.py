@@ -35,7 +35,15 @@ class OllamaClient:
                     f"{self.base_url}/api/generate", json=payload, timeout=self.timeout_s)
                 resp.raise_for_status()
                 return resp.json()["response"]
-            except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as err:
+            except requests.HTTPError as err:
+                status = getattr(err.response, "status_code", None)
+                if status is not None and status < 500:
+                    raise OllamaError(f"generate failed with client error {status}: {err}") from err
                 last_err = err
+            except (requests.ConnectionError, requests.Timeout) as err:
+                last_err = err
+            except (ValueError, KeyError) as err:
+                raise OllamaError(f"generate returned a malformed response: {err!r}") from err
+            if attempt < self.max_retries - 1:
                 time.sleep(self.backoff_s * (attempt + 1))
         raise OllamaError(f"generate failed after {self.max_retries} attempts: {last_err}")

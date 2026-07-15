@@ -127,6 +127,8 @@ def run_trials(config: dict, task_map: dict, client, results_path: Path) -> None
                           "latency_s": round(time.time() - start, 2), "ts": time.time()}
                 f.write(json.dumps(record) + "\n")
                 f.flush()
+            except OSError:
+                raise  # disk problems must stop the run
             except Exception as exc:
                 # The response is lost, but the run survives; resume retries the trial.
                 print(f"ERROR {key}: {exc!r}")

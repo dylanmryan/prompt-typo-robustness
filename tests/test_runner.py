@@ -1,5 +1,6 @@
 """Grid construction and resume-logic tests (no real Ollama)."""
 import json
+from pathlib import Path
 
 import pytest
 
@@ -149,3 +150,30 @@ def test_ollama_error_skips_and_retries_on_resume(tmp_path):
     assert len(results.read_text().splitlines()) == 10
     run_trials(CONFIG, {"fake": FakeTask()}, StubClient(), results)
     assert len(results.read_text().splitlines()) == 16
+
+
+def test_write_failures_abort_the_run(tmp_path, monkeypatch):
+    results = tmp_path / "trials.jsonl"
+    real_open = Path.open
+
+    class ExplodingFile:
+        def __init__(self, fh):
+            self._fh = fh
+
+        def write(self, *a):
+            raise OSError("disk full")
+
+        def flush(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self._fh.close()
+            return False
+
+    monkeypatch.setattr(
+        Path, "open", lambda self, *a, **k: ExplodingFile(real_open(self, *a, **k)))
+    with pytest.raises(OSError):
+        run_trials(CONFIG, {"fake": FakeTask()}, StubClient(), results)

@@ -64,6 +64,13 @@ def test_single_typo_type_restriction():
     assert all(len(e.corrupted) == len(e.original) - 1 for e in r.edits)
 
 
+def test_corruption_always_changes_the_word():
+    for seed in range(30):
+        r = corrupt("the aaa bbb committee occurred", 1.0, seed=seed)
+        for e in r.edits:
+            assert e.corrupted != e.original
+
+
 def test_invalid_severity_raises():
     import pytest
     with pytest.raises(ValueError):

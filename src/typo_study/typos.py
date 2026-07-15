@@ -44,9 +44,10 @@ def _apply_typo(word: str, typo_type: str, rng: random.Random) -> str:
         repl = rng.choice(QWERTY_NEIGHBORS[word[i].lower()])
         return word[:i] + repl + word[i + 1:]
     if typo_type == "transposition":
-        i = rng.randrange(len(word) - 1)
-        if word[i] == word[i + 1]:
-            i = (i + 1) % (len(word) - 1)
+        positions = [i for i in range(len(word) - 1) if word[i] != word[i + 1]]
+        if not positions:  # uniform word like "aaa" cannot change under transposition
+            return _apply_typo(word, "doubling", rng)
+        i = rng.choice(positions)
         return word[:i] + word[i + 1] + word[i] + word[i + 2:]
     if typo_type == "deletion":
         i = rng.randrange(len(word))

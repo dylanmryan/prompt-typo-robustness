@@ -1,7 +1,7 @@
 """Grid construction and resume-logic tests (no real Ollama)."""
 import json
 
-from typo_study.runner import build_trials, run_trials
+from typo_study.runner import build_trials, run_trials, trial_key
 from typo_study.typos import TYPO_TYPES
 
 CONFIG = {
@@ -60,6 +60,19 @@ def test_build_trials_deterministic():
     a = build_trials(CONFIG, {"fake": FakeTask()})
     b = build_trials(CONFIG, {"fake": FakeTask()})
     assert a == b
+
+
+def test_breakdown_items_identical_across_models():
+    cfg = dict(CONFIG, models=["m1", "m2"], model_item_fraction={"m2": 0.5})
+    trials = build_trials(cfg, {"fake": FakeTask()})
+    bd = [t for t in trials if t["phase"] == "breakdown"]
+    per_model = {m: {t["item_id"] for t in bd if t["model"] == m} for m in ("m1", "m2")}
+    assert per_model["m1"] == per_model["m2"] and per_model["m1"]
+
+
+def test_trial_keys_unique():
+    trials = build_trials(CONFIG, {"fake": FakeTask()})
+    assert len({trial_key(t) for t in trials}) == len(trials)
 
 
 def test_run_trials_writes_records_and_grades(tmp_path):

@@ -34,8 +34,15 @@ def build_trials(config: dict, task_map: dict) -> list[dict]:
     for task_name, task in task_map.items():
         items = task.items[: config["item_counts"][task_name]]
         rng = random.Random(f"{config['seed']}:{task_name}")
-        k = max(1, round(len(items) * bd["item_fraction"]))
-        breakdown_ids = {it["id"] for it in rng.sample(items, k)}
+        # Prefix truncation is intentional and deterministic: every model's item
+        # subset is a prefix of `items`, so sampling breakdown items from the
+        # largest prefix common to all models guarantees every model runs the
+        # exact same breakdown items, keeping typo-type results comparable.
+        pool_len = min(max(1, round(len(items) * fractions.get(m, 1.0)))
+                       for m in config["models"])
+        pool = items[:pool_len]
+        k = min(max(1, round(len(items) * bd["item_fraction"])), pool_len)
+        breakdown_ids = {it["id"] for it in rng.sample(pool, k)}
         for model in config["models"]:
             frac = fractions.get(model, 1.0)
             use = items[: max(1, round(len(items) * frac))]

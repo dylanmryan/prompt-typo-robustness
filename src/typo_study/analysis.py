@@ -8,10 +8,10 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 import yaml
+from statsmodels.stats.proportion import proportion_confint
 
 FIGURES = Path("figures")
 RESULTS = Path("results")
@@ -22,11 +22,9 @@ def load_results(path: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def bootstrap_ci(values, n_boot: int = 2000, seed: int = 0, alpha: float = 0.05):
-    rng = np.random.default_rng(seed)
-    arr = np.asarray(values, dtype=float)
-    means = rng.choice(arr, size=(n_boot, len(arr)), replace=True).mean(axis=1)
-    return float(np.quantile(means, alpha / 2)), float(np.quantile(means, 1 - alpha / 2))
+def wilson_ci(successes: int, n: int, alpha: float = 0.05) -> tuple[float, float]:
+    lo, hi = proportion_confint(successes, n, alpha=alpha, method="wilson")
+    return float(lo), float(hi)
 
 
 def accuracy_table(df: pd.DataFrame) -> pd.DataFrame:
@@ -34,16 +32,22 @@ def accuracy_table(df: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for (model, severity), g in main.groupby(["model", "severity"]):
         vals = g.correct.astype(int).to_numpy()
-        lo, hi = bootstrap_ci(vals)
+        lo, hi = wilson_ci(int(vals.sum()), len(vals))
         rows.append({"model": model, "severity": severity,
-                     "accuracy": vals.mean(), "ci_lo": lo, "ci_hi": hi, "n": len(vals)})
+                     "accuracy": vals.mean(), "ci_lo": lo, "ci_hi": hi,
+                     "empty_rate": float(g["empty"].mean()), "n": len(vals)})
     return pd.DataFrame(rows).sort_values(["model", "severity"]).reset_index(drop=True)
 
 
 def fit_logit(df: pd.DataFrame) -> str:
     main = df[df.phase == "main"].assign(correct=lambda d: d.correct.astype(int))
-    model = smf.logit("correct ~ severity * C(model)", data=main).fit(disp=False)
-    return str(model.summary())
+    model = smf.logit("correct ~ severity * C(model)", data=main).fit(
+        disp=False, cov_type="cluster", cov_kwds={"groups": main["item_id"]})
+    header = "Logistic regression, cluster-robust SEs grouped by item_id.\n"
+    if not model.mle_retvals.get("converged", True):
+        header += ("WARNING: MLE did not converge (possible separation); "
+                   "interpret coefficients with caution.\n")
+    return header + "\n" + str(model.summary())
 
 
 def fig_degradation(df: pd.DataFrame, out: Path) -> None:
@@ -55,7 +59,7 @@ def fig_degradation(df: pd.DataFrame, out: Path) -> None:
         ax.fill_between(g.severity * 100, g.ci_lo, g.ci_hi, alpha=0.15)
     ax.set_xlabel("Typo severity (% of words corrupted)")
     ax.set_ylabel("Accuracy")
-    ax.set_title("Accuracy vs. typo severity (95% bootstrap CI)")
+    ax.set_title("Accuracy vs. typo severity (95% Wilson CI)")
     ax.legend()
     fig.tight_layout()
     fig.savefig(out, dpi=150)
